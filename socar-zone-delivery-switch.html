@@ -1661,7 +1661,8 @@ const barMotionParams = new URLSearchParams(location.search);
 let barMotionSpeed = [700,840,1260,1680].includes(Number(barMotionParams.get('duration'))) ? Number(barMotionParams.get('duration')) : 840;
 let barMotionEasing = barMotionParams.get('easing') === 'in' ? 'in' : 'out';
 let barMotionRotation = barMotionParams.has('rotation') && [0,4,7].includes(Number(barMotionParams.get('rotation'))) ? Number(barMotionParams.get('rotation')) : 0;
-let barMotionBuffer = barMotionParams.has('buffer') && [0,100,200,300,500,700,1000].includes(Number(barMotionParams.get('buffer'))) ? Number(barMotionParams.get('buffer')) : 500;
+// Ignore buffer values in older shared links so the finalized 500ms default takes effect.
+let barMotionBuffer = barMotionParams.get('motionVersion') === '2' && barMotionParams.has('buffer') && [0,100,200,300,500,700,1000].includes(Number(barMotionParams.get('buffer'))) ? Number(barMotionParams.get('buffer')) : 500;
 let activeBarAnimations = [], barMotionTimer = null, barMotionPlaying = false;
 function setBarMotionPhase(text) { $('#barMotionPhase').textContent=text; }
 function cancelBarMotion() {
@@ -1718,7 +1719,7 @@ function initBarMotionReview() {
     $('#barMotionRotationControl').hidden=barMotion!=='slide';
     $('#barMotionTiming').textContent=`대기 ${barMotionBuffer}ms + 등장 ${barMotionSpeed}ms = 총 ${barMotionBuffer+barMotionSpeed}ms`;
     $('#barMotionDescription').textContent=reduce()?'기기의 동작 줄이기 설정에 따라 애니메이션을 생략합니다.':barMotion==='slide'?(barMotionRotation?'기울어진 채로 내려와 작게 흔들린 뒤 수평으로 멈춥니다.':'바 전체가 지도 위쪽에서 내려옵니다.'):'바의 중앙을 기준으로 위아래가 동시에 펼쳐집니다.';
-    const url=new URL(location.href); url.searchParams.set('motion',barMotion); url.searchParams.set('duration',String(barMotionSpeed)); url.searchParams.set('easing',barMotionEasing); url.searchParams.set('rotation',String(barMotionRotation)); url.searchParams.set('buffer',String(barMotionBuffer)); history.replaceState(history.state,'',url);
+    const url=new URL(location.href); url.searchParams.set('motion',barMotion); url.searchParams.set('duration',String(barMotionSpeed)); url.searchParams.set('easing',barMotionEasing); url.searchParams.set('rotation',String(barMotionRotation)); url.searchParams.set('buffer',String(barMotionBuffer)); url.searchParams.set('motionVersion','2'); history.replaceState(history.state,'',url);
   };
   const replay=()=>{
     if (!showBar()) {
