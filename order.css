@@ -278,3 +278,6 @@
 .motion-review__easing select{flex:1;min-width:0;padding:6px;border:1px solid var(--border);border-radius:6px;background:white;font:inherit;color:var(--text-primary)}
 
 .motion-review__easing[hidden]{display:none}
+
+.motion-review__timing{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:8px;border-radius:8px;background:var(--gray-50);font-size:11px;line-height:18px;color:var(--text-secondary)}
+.motion-review__timing strong{flex:none;color:var(--primary);font-weight:600}

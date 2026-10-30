@@ -841,7 +841,7 @@ body.is-narrow .proto-opt .proto-opt__reset{width:28px;padding:4px 7px;font-size
 .detail__rental-method:has(.detail__places-heading) .detail__place-note{color:#99A1B1;background:#EBF5FF}
 
 </style>
-<link rel="stylesheet" href="order.css?v=20261030-pinbar-rotation">
+<link rel="stylesheet" href="order.css?v=20261030-pinbar-buffer">
 </head>
 <body>
 <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -956,6 +956,8 @@ body.is-narrow .proto-opt .proto-opt__reset{width:28px;padding:4px 7px;font-size
           <header><strong>위치 바 인터랙션 비교</strong><a href="?" aria-label="인터랙션 비교 닫기">닫기</a></header>
           <div class="motion-review__variants" role="group" aria-label="등장 방식"><button type="button" data-bar-motion="slide" aria-pressed="true">A · 위에서 내려오기</button><button type="button" data-bar-motion="fold" aria-pressed="false">B · 접혔다 펼쳐지기</button></div>
           <div class="motion-review__playback"><label>재생 속도 <select id="barMotionSpeed"><option value="700">빠르게 · 700ms</option><option value="840" selected>기본 · 840ms</option><option value="1260">느리게 · 1,260ms</option><option value="1680">더 느리게 · 1,680ms</option></select></label><button type="button" id="replayBarMotion">다시 재생</button></div>
+          <label class="motion-review__easing">버퍼 타임 <select id="barMotionBuffer" aria-label="등장 전 대기 시간"><option value="0">없음 · 바로 등장</option><option value="100">100ms</option><option value="200">200ms</option><option value="300">300ms</option><option value="500">500ms</option><option value="700">700ms</option><option value="1000">1,000ms</option></select></label>
+          <div class="motion-review__timing"><span id="barMotionTiming"></span><strong id="barMotionPhase" role="status">준비</strong></div>
           <label class="motion-review__easing">움직임 <select id="barMotionEasing"><option value="in">Ease-in · 천천히 시작</option><option value="out" selected>Ease-out · 부드럽게 멈춤</option></select></label>
           <label class="motion-review__easing" id="barMotionRotationControl">회전 <select id="barMotionRotation"><option value="0">없음</option><option value="4">살짝 · 4°</option><option value="7">더 크게 · 7°</option></select></label>
           <p id="barMotionDescription" role="status">바 전체가 지도 위쪽에서 내려옵니다.</p>
@@ -1659,18 +1661,22 @@ const barMotionParams = new URLSearchParams(location.search);
 let barMotionSpeed = [700,840,1260,1680].includes(Number(barMotionParams.get('duration'))) ? Number(barMotionParams.get('duration')) : 840;
 let barMotionEasing = barMotionParams.get('easing') === 'in' ? 'in' : 'out';
 let barMotionRotation = barMotionParams.has('rotation') && [0,4,7].includes(Number(barMotionParams.get('rotation'))) ? Number(barMotionParams.get('rotation')) : 0;
-let activeBarAnimations = [];
+let barMotionBuffer = [0,100,200,300,500,700,1000].includes(Number(barMotionParams.get('buffer'))) ? Number(barMotionParams.get('buffer')) : 0;
+let activeBarAnimations = [], barMotionTimer = null;
+function setBarMotionPhase(text) { $('#barMotionPhase').textContent=text; }
 function cancelBarMotion() {
+  clearTimeout(barMotionTimer); barMotionTimer=null;
   activeBarAnimations.forEach(a=>a.cancel()); activeBarAnimations=[];
+  $('#pinbar').inert=false;
 }
 function playBarMotion() {
   const el=$('#pinbar');
   cancelBarMotion();
   el.classList.remove('is-enter');
-  if (el.hidden || reduce()) return;
+  if (el.hidden || reduce()) { setBarMotionPhase(reduce()?'동작 줄이기 적용':'준비'); return; }
   const mobile=isMobile(), centered=mobile?'translateX(0)':'translateX(-50%)';
   const duration=barMotionSpeed;
-  const options={duration,easing:barMotionEasing==='in'?'cubic-bezier(.42,0,1,1)':'cubic-bezier(.22,1,.36,1)'};
+  const options={duration,delay:barMotionBuffer,fill:'backwards',easing:barMotionEasing==='in'?'cubic-bezier(.42,0,1,1)':'cubic-bezier(.22,1,.36,1)'};
   if (barMotion==='slide') {
     const angle=barMotionRotation;
     const frames=angle ? [
@@ -1686,7 +1692,7 @@ function playBarMotion() {
   } else {
     const row=$('.pinbar__row',el);
     activeBarAnimations.push(el.animate([
-      {clipPath:'inset(49% 0 49% 0 round 14px)',opacity:.4},
+      {clipPath:'inset(49% 0 49% 0 round 14px)',opacity:0},
       {clipPath:'inset(0% 0 0% 0 round 14px)',opacity:1}
     ],options));
     activeBarAnimations.push(row.animate([
@@ -1695,6 +1701,14 @@ function playBarMotion() {
       {opacity:1,offset:1}
     ],options));
   }
+  el.inert=true;
+  setBarMotionPhase(barMotionBuffer?'대기 중':'등장 중');
+  if (barMotionBuffer) barMotionTimer=setTimeout(()=>setBarMotionPhase('등장 중'),barMotionBuffer);
+  const running=activeBarAnimations[0];
+  running.finished.then(()=>{
+    if (activeBarAnimations[0]!==running) return;
+    clearTimeout(barMotionTimer);barMotionTimer=null;el.inert=false;setBarMotionPhase('완료');
+  }).catch(()=>{}); // Replay or editing cancels the previous sequence.
 }
 function initBarMotionReview() {
   if (!new URLSearchParams(location.search).has('motion')) return;
@@ -1702,8 +1716,9 @@ function initBarMotionReview() {
   const update=()=>{
     $$('[data-bar-motion]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.barMotion===barMotion)));
     $('#barMotionRotationControl').hidden=barMotion!=='slide';
+    $('#barMotionTiming').textContent=`대기 ${barMotionBuffer}ms + 등장 ${barMotionSpeed}ms = 총 ${barMotionBuffer+barMotionSpeed}ms`;
     $('#barMotionDescription').textContent=reduce()?'기기의 동작 줄이기 설정에 따라 애니메이션을 생략합니다.':barMotion==='slide'?(barMotionRotation?'기울어진 채로 내려와 작게 흔들린 뒤 수평으로 멈춥니다.':'바 전체가 지도 위쪽에서 내려옵니다.'):'바의 중앙을 기준으로 위아래가 동시에 펼쳐집니다.';
-    const url=new URL(location.href); url.searchParams.set('motion',barMotion); url.searchParams.set('duration',String(barMotionSpeed)); url.searchParams.set('easing',barMotionEasing); url.searchParams.set('rotation',String(barMotionRotation)); history.replaceState(history.state,'',url);
+    const url=new URL(location.href); url.searchParams.set('motion',barMotion); url.searchParams.set('duration',String(barMotionSpeed)); url.searchParams.set('easing',barMotionEasing); url.searchParams.set('rotation',String(barMotionRotation)); url.searchParams.set('buffer',String(barMotionBuffer)); history.replaceState(history.state,'',url);
   };
   const replay=()=>{
     if (!showBar()) {
@@ -1714,6 +1729,8 @@ function initBarMotionReview() {
   };
   $$('[data-bar-motion]').forEach(b=>b.addEventListener('click',()=>{barMotion=b.dataset.barMotion;update();replay();}));
   $('#barMotionSpeed').value=String(barMotionSpeed);
+  $('#barMotionBuffer').value=String(barMotionBuffer);
+  $('#barMotionBuffer').addEventListener('change',e=>{barMotionBuffer=Number(e.target.value);update();replay();});
   $('#barMotionEasing').value=barMotionEasing;
   $('#barMotionRotation').value=String(barMotionRotation);
   $('#barMotionRotation').addEventListener('change',e=>{barMotionRotation=Number(e.target.value);update();replay();});
