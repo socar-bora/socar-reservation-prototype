@@ -1662,10 +1662,10 @@ let barMotionSpeed = [700,840,1260,1680].includes(Number(barMotionParams.get('du
 let barMotionEasing = barMotionParams.get('easing') === 'in' ? 'in' : 'out';
 let barMotionRotation = barMotionParams.has('rotation') && [0,4,7].includes(Number(barMotionParams.get('rotation'))) ? Number(barMotionParams.get('rotation')) : 0;
 let barMotionBuffer = [0,100,200,300,500,700,1000].includes(Number(barMotionParams.get('buffer'))) ? Number(barMotionParams.get('buffer')) : 0;
-let activeBarAnimations = [], barMotionTimer = null;
+let activeBarAnimations = [], barMotionTimer = null, barMotionPlaying = false;
 function setBarMotionPhase(text) { $('#barMotionPhase').textContent=text; }
 function cancelBarMotion() {
-  clearTimeout(barMotionTimer); barMotionTimer=null;
+  clearTimeout(barMotionTimer); barMotionTimer=null;barMotionPlaying=false;setBarMotionPhase('준비');
   activeBarAnimations.forEach(a=>a.cancel()); activeBarAnimations=[];
   $('#pinbar').inert=false;
 }
@@ -1701,13 +1701,13 @@ function playBarMotion() {
       {opacity:1,offset:1}
     ],options));
   }
-  el.inert=true;
+  el.inert=true;barMotionPlaying=true;
   setBarMotionPhase(barMotionBuffer?'대기 중':'등장 중');
   if (barMotionBuffer) barMotionTimer=setTimeout(()=>setBarMotionPhase('등장 중'),barMotionBuffer);
   const running=activeBarAnimations[0];
   running.finished.then(()=>{
     if (activeBarAnimations[0]!==running) return;
-    clearTimeout(barMotionTimer);barMotionTimer=null;el.inert=false;setBarMotionPhase('완료');
+    clearTimeout(barMotionTimer);barMotionTimer=null;barMotionPlaying=false;el.inert=false;setBarMotionPhase('완료');
   }).catch(()=>{}); // Replay or editing cancels the previous sequence.
 }
 function initBarMotionReview() {
@@ -1757,13 +1757,14 @@ function renderBar() {
   el.setAttribute('aria-label', `${NAMES[k]} 위치 확정`);
   const title = loading ? DOTS : esc(f.name);
   const sub = f.addr;
+  const replayMotion = !wasHidden && barMotionPlaying;
   if (!wasHidden) cancelBarMotion();
   el.innerHTML = `<div class="pinbar__row">${tagHTML(k)}<div class="pinbar__body">` +
     `<button type="button" class="pinbar__name" data-bar="search" aria-label="${esc(loading ? f.addr : f.name)}. 장소 검색"><span>${title}</span><img class="pinbar__search-icon" src="assets/icons/map-search-mobile.svg" alt="" width="14" height="14"></button>` +
     `<p class="pinbar__addr${loading ? ' is-muted' : ''}">${esc(sub)}</p></div><div class="pinbar__actions">` +
     '<button type="button" class="btn btn--sm btn--outline" data-bar="cancel">취소</button>' +
     `<button type="button" class="btn btn--sm btn--primary" data-bar="confirm"${loading || blocked ? ' disabled' : ''}>${k === 'del' ? '여기로 받기' : '여기로 반납'}</button></div></div>`;
-  if (wasHidden) playBarMotion();
+  if (wasHidden || replayMotion) playBarMotion();
   $('#map').style.setProperty('--pinbar-height', el.offsetHeight + 'px');
   syncPinActive();
 }
